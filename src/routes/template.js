@@ -15,7 +15,7 @@ const getParams = require('../definitions.js').getParams
  * Show list of available definitions
  */
 router.get('/', async(req, res, next) => {
-  view = {
+  const view = {
     definitions: []
   }
   for (const definition of req.app.get('definitions')) {
@@ -52,6 +52,8 @@ router.get('/:name', async (req, res, next) => {
   const fullUrl = req.protocol + '://' + req.get('host')
   let definitionPath = `${fullUrl}/definition/${definition.id}`
 
+  console.log('DP: ', definitionPath)
+
   if(!Object.prototype.hasOwnProperty.call(definition, 'inputs')
      && !Object.prototype.hasOwnProperty.call(definition, 'outputs')) {
 
@@ -69,7 +71,7 @@ router.get('/:name', async (req, res, next) => {
 
   }
 
-  view = {
+  const view = {
     name: definition.name,
     inputs: []
   }
@@ -78,7 +80,37 @@ router.get('/:name', async (req, res, next) => {
     const name = input.name
     const id = name
     switch (input.paramType) {
-      case 'Integer':
+    case 'Integer':
+      view.inputs.push({
+        name: name,
+        id: id,
+        number: {
+          value: input.default
+        }
+      })
+      break
+    case 'Number':
+      if (input.minimum !== undefined && input.minimum !== null
+            && input.maximum !== undefined && input.maximum !== null)
+      {
+
+        let step = 1
+        if( ( input.maximum - input.minimum ) < 1 ) {
+          step = 0.1
+        }
+        // use range input if min and max set
+        view.inputs.push({
+          name: name,
+          id: id,
+          range: {
+            min: input.minimum,
+            max: input.maximum,
+            value: input.default,
+            step: step
+          }
+        })
+      } else {
+        // otherwise use number input
         view.inputs.push({
           name: name,
           id: id,
@@ -86,51 +118,21 @@ router.get('/:name', async (req, res, next) => {
             value: input.default
           }
         })
-        break;
-      case 'Number':
-        if (input.minimum !== undefined && input.minimum !== null
-            && input.maximum !== undefined && input.maximum !== null)
-        {
-
-          let step = 1
-          if( ( input.maximum - input.minimum ) < 1 ) {
-            step = 0.1
-          }
-          // use range input if min and max set
-          view.inputs.push({
-            name: name,
-            id: id,
-            range: {
-              min: input.minimum,
-              max: input.maximum,
-              value: input.default,
-              step: step
-            }
-          })
-        } else {
-          // otherwise use number input
-          view.inputs.push({
-            name: name,
-            id: id,
-            number: {
-              value: input.default
-            }
-          })
+      }
+      break
+    case 'Boolean':
+      view.inputs.push({
+        name: name,
+        id: id,
+        bool: {
+          value: input.default
         }
-        break
-      case 'Boolean':
-        view.inputs.push({
-          name: name,
-          id: id,
-          bool: {
-            value: input.default
-          }
-        })
-        break
+      })
+      break
     }
   }
 
-  res.render('definition', view)
+  res.json(view)
 })
 
 module.exports = router

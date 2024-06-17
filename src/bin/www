@@ -28,7 +28,7 @@ function start(id){
  * Get port from environment and store in Express.
  */
 
-  var port = normalizePort(process.env.PORT || '3000')
+  var port = normalizePort(process.env.PORT || '8080')
   app.set('port', port)
 
   /**
@@ -41,7 +41,7 @@ function start(id){
  * Listen on provided port, on all network interfaces.
  */
 
-  server.listen(port)
+  server.listen(port, '0.0.0.0')
   server.on('error', onError)
   server.on('listening', onListening)
 
@@ -107,7 +107,7 @@ function start(id){
 
     // print handy /view url
     if (typeof addr !== 'string') {
-      console.log(`Go to viewer: http://localhost:${addr.port}/view`)
+      console.log(`Go to viewer: http://${addr.address}:${addr.port}/view`)
     }
   }
 }
