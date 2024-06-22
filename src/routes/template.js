@@ -132,7 +132,7 @@ router.get('/:name', async (req, res, next) => {
     }
   }
 
-  res.json(view)
+  res.json(view);
 })
 
 module.exports = router

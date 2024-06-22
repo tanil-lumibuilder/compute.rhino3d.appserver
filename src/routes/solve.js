@@ -141,6 +141,9 @@ function commonSolve (req, res, next){
     }
 
     let fullUrl = req.protocol + '://' + req.get('host')
+    console.log("fullUrl: ", fullUrl);
+    console.log("compute.url: ", compute.url);
+    console.log("compute.key: ", compute.apiKey);
     let definitionPath = `${fullUrl}/definition/${definition.id}`
     const timePreComputeServerCall = performance.now()
     let computeServerTiming = null
