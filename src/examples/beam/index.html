@@ -3,26 +3,18 @@
     <head>
         <meta charset="utf-8">
         <link rel="icon" href="data:,">
-        <title>hull.gh</title>
+        <title>beam_mod.gh</title>
         <style>
-/* /////////////////////////////////////////////////////////////////////////// */
             body {
                 margin: 0;
-                font-family: monospace;
-                color: #f3f3f3;
+                font-family: Arial, Helvetica, sans-serif;
             }
-/* /////////////////////////////////////////////////////////////////////////// */
             canvas { width: 100%; height: 100%; }
             input[type=range] { width: 100%; }
             #container { position: relative; }
             #container canvas, #overlay { position: absolute; }
             #overlay { z-index: 1; width: 100%; }
-/* /////////////////////////////////////////////////////////////////////////// */
-            #overlay div {
-              padding: 5px;
-              text-align-last: center;
-              }
-/* /////////////////////////////////////////////////////////////////////////// */
+            #overlay div { padding: 5px; }
             #loader {
                 border: 5px solid #f3f3f3; /* Light grey */
                 border-top: 5px solid #3d3d3d; /* Grey */
@@ -45,18 +37,22 @@
         <div id="loader"></div> 
         <div id="container">
             <div id="overlay">
-<!-- /////////////////////////////////////////////////////////////////////////// -->
                 <div>
-                    <h1>Upload 3DM file</h1>
-                    <input type="file" accept=".3dm" id="file-input" />
+                  <label for="Length">Length</label>
+                  <input type="range" id="Length" min="0" max="20" value="20" step="1">
                 </div>
-                <div id="msg">Choose a .3dm file that has breps and/or extrusions ☝</div>
+                <div>
+                  <label for="Position">Position</label>
+                  <input type="range" id="Position" min="0.01" max="0.99" value="0.99" step="0.1">
+                </div>
+                <div>
+                  <label for="Toggle">Toggle</label>
+                  <input type="checkbox" id="Toggle" >
+                </div>
                 <div><button id="downloadButton" disabled>Download</button></div>
-                <!-- <div><a href="hull.gh" download="hull.gh.html">Save source code</a></div> -->
-<!-- /////////////////////////////////////////////////////////////////////////// -->
+                <div><a href="beam_mod.gh" download="beam_mod.gh.html">Save source code</a></div>
             </div>
         </div>
-
         <!-- Import maps polyfill -->
         <!-- Remove this when import maps will be widely supported -->
         <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
@@ -67,10 +63,11 @@
                 "three": "https://unpkg.com/three@0.156.1/build/three.module.js",
                 "three/examples/jsm/controls/OrbitControls": "https://unpkg.com/three@0.156.1/examples/jsm/controls/OrbitControls.js",
                 "three/examples/jsm/loaders/3DMLoader": "https://unpkg.com/three@0.156.1/examples/jsm/loaders/3DMLoader.js",
-                "rhino3dm":"https://unpkg.com/rhino3dm@8.0.0-beta/rhino3dm.module.js"
+                "rhino3dm":"https://unpkg.com/rhino3dm@8.0.0-beta2/rhino3dm.module.js"
               }
             }
         </script>
+
         <script type="module">
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
@@ -79,19 +76,16 @@ import rhino3dm from 'rhino3dm'
 
 // set up loader for converting the results to threejs
 const loader = new Rhino3dmLoader()
-loader.setLibraryPath( 'https://unpkg.com/rhino3dm@8.0.0-beta/' )
+loader.setLibraryPath( 'https://unpkg.com/rhino3dm@8.0.0-beta2/' )
 
 // initialise 'data' object that will be used by compute()
 const data = {
-  definition: 'brep_union.gh',
-  inputs: {
-    breps: []
-  }
+  definition: 'beam_mod.gh',
+  inputs: getInputs()
 }
 
 // globals
 let doc
-let scene, camera, renderer, controls
 
 const rhino = await rhino3dm()
 console.log('Loaded rhino3dm.')
@@ -106,74 +100,36 @@ downloadButton.onclick = download
  //                            HELPER  FUNCTIONS                            //
 /////////////////////////////////////////////////////////////////////////////
 
-///////////////////////////////////////////////////////////////////////////
-async function readSingleFile(e) {
-  // get file
-  var file = e.target.files[0]
-  if (!file) {
-    document.getElementById('msg').innerText = 'Something went wrong...'
-    return
-  }
-
-  // try to open 3dm file
-  const buffer = await file.arrayBuffer()
-  const uploadDoc = rhino.File3dm.fromByteArray(new Uint8Array(buffer))
-
-  if (uploadDoc === null) {
-    document.getElementById('msg').innerText = 'Must be a .3dm file!'
-    return
-  }
-
-  // get geometry from file
-  const objs = uploadDoc.objects()
-  const geometry = []
-  for (let i = 0; i < objs.count; i++) {
-    const geom = objs.get(i).geometry()
-    // filter for geometry of a specific type
-    if (geom instanceof rhino.Brep || geom instanceof rhino.Extrusion) {
-      geometry.push(JSON.stringify(geom))
-    }
-  }
-
-  // solve!
-  data.inputs.breps = geometry
-  compute()
-}
-
-// register event listener for file input
-document.getElementById('file-input')
-  .addEventListener('change', readSingleFile, false);
-///////////////////////////////////////////////////////////////////////////
-
 /**
  * Gets <input> elements from html and sets handlers
  * (html is generated from the grasshopper definition)
  */
-// function getInputs() {
-//   const inputs = {}
-//   for (const input of document.getElementsByTagName('input')) {
-//     switch (input.type) {
-//       case 'number':
-//         inputs[input.id] = input.valueAsNumber
-//         input.onchange = onSliderChange
-//         break
-//       case 'range':
-//         inputs[input.id] = input.valueAsNumber
-//         input.onmouseup = onSliderChange
-//         input.ontouchend = onSliderChange
-//         break
-//       case 'checkbox':
-//         inputs[input.id] = input.checked
-//         input.onclick = onSliderChange
-//         break
-//       default:
-//         break
-//     }
-//   }
-//   return inputs
-// }
+function getInputs() {
+  const inputs = {}
+  for (const input of document.getElementsByTagName('input')) {
+    switch (input.type) {
+      case 'number':
+        inputs[input.id] = input.valueAsNumber
+        input.onchange = onSliderChange
+        break
+      case 'range':
+        inputs[input.id] = input.valueAsNumber
+        input.onmouseup = onSliderChange
+        input.ontouchend = onSliderChange
+        break
+      case 'checkbox':
+        inputs[input.id] = input.checked
+        input.onclick = onSliderChange
+        break
+      default:
+        break
+    }
+  }
+  return inputs
+}
 
-
+// more globals
+let scene, camera, renderer, controls
 
 /**
  * Sets up the scene, camera, renderer, lights and controls and starts the animation
@@ -190,7 +146,7 @@ function init() {
     camera.position.set(1, -1, 1) // like perspective view
 
     // very light grey for background, like rhino
-    scene.background = new THREE.Color('black')
+    scene.background = new THREE.Color('whitesmoke')
 
     // create the renderer and add it to the html
     renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -219,19 +175,13 @@ function init() {
  * Call appserver
  */
 async function compute() {
-///////////////////////////////////////////////////////////////////////////
-  showSpinner(true)
-
-  // use POST request
-  const request = {
-    'method':'POST',
-    'body': JSON.stringify(data),
-    'headers': {'Content-Type': 'application/json'}
-  }
+  // construct url for GET /solve/definition.gh?name=value(&...)
+  const url = new URL('/solve/' + data.definition, window.location.origin)
+  Object.keys(data.inputs).forEach(key => url.searchParams.append(key, data.inputs[key]))
+  console.log(url.toString())
   
   try {
-    const response = await fetch('/solve', request)
-///////////////////////////////////////////////////////////////////////////
+    const response = await fetch(url)
   
     if(!response.ok) {
       // TODO: check for errors in response json
@@ -239,7 +189,6 @@ async function compute() {
     }
 
     const responseJson = await response.json()
-
     console.log(responseJson)
 
     collectResults(responseJson)
@@ -272,6 +221,7 @@ function collectResults(responseJson) {
         for( let j = 0; j < branch.length; j ++) {
           // ...load rhino geometry into doc
           const rhinoObject = decodeItem(branch[j])
+          console.log(rhinoObject)
           if (rhinoObject !== null) {
             doc.objects().add(rhinoObject, null)
           }
@@ -285,27 +235,17 @@ function collectResults(responseJson) {
       return
     }
 
-///////////////////////////////////////////////////////////////////////////
-    const countBefore = data.inputs.breps.length
-    const countAfter = doc.objects().count
-    document.getElementById('msg').innerText = `${countBefore} breps become ${countAfter}!`
-
-    // hack (https://github.com/mcneel/rhino3dm/issues/353)
-    const sphereAttrs = new rhino.ObjectAttributes()
-    sphereAttrs.mode = rhino.ObjectMode.Hidden
-    doc.objects().addSphere(new rhino.Sphere([0,0,0], 0.001), sphereAttrs)
-///////////////////////////////////////////////////////////////////////////
-
     // load rhino doc into three.js scene
     const buffer = new Uint8Array(doc.toByteArray()).buffer
     loader.parse( buffer, function ( object ) 
     {
-///////////////////////////////////////////////////////////////////////////
+        // debug 
+        /*
         object.traverse(child => {
-          if (child.isMesh)
-            child.material = new THREE.MeshNormalMaterial({ wireframe: true })
+          if (child.material !== undefined)
+            child.material = new THREE.MeshNormalMaterial()
         }, false)
-///////////////////////////////////////////////////////////////////////////
+        */
 
         // clear objects from scene. do this here to avoid blink
         scene.traverse(child => {
@@ -313,6 +253,8 @@ function collectResults(responseJson) {
                 scene.remove(child)
             }
         })
+
+        //console.log(object)
 
         // add object graph from rhino model to three.js scene
         scene.add( object )
@@ -322,8 +264,8 @@ function collectResults(responseJson) {
         downloadButton.disabled = false
 
         // zoom to extents
-        zoomCameraToSelection(camera, controls, scene.children)
-    },(error)=>{console.error(error)})
+        //zoomCameraToSelection(camera, controls, scene.children)
+    })
 }
 
 /**
@@ -337,6 +279,7 @@ function decodeItem(item) {
         return rhino.DracoCompression.decompressBase64String(data)
     } catch {} // ignore errors (maybe the string was just a string...)
   } else if (typeof data === 'object') {
+    //console.log(data)
     return rhino.CommonObject.decode(data)
   }
   return null
@@ -346,28 +289,28 @@ function decodeItem(item) {
  * Called when a slider value changes in the UI. Collect all of the
  * slider values and call compute to solve for a new scene
  */
-// function onSliderChange () {
-//   showSpinner(true)
-//   // get slider values
-//   let inputs = {}
-//   for (const input of document.getElementsByTagName('input')) {
-//     switch (input.type) {
-//     case 'number':
-//       inputs[input.id] = input.valueAsNumber
-//       break
-//     case 'range':
-//       inputs[input.id] = input.valueAsNumber
-//       break
-//     case 'checkbox':
-//       inputs[input.id] = input.checked
-//       break
-//     }
-//   }
+function onSliderChange () {
+  showSpinner(true)
+  // get slider values
+  let inputs = {}
+  for (const input of document.getElementsByTagName('input')) {
+    switch (input.type) {
+    case 'number':
+      inputs[input.id] = input.valueAsNumber
+      break
+    case 'range':
+      inputs[input.id] = input.valueAsNumber
+      break
+    case 'checkbox':
+      inputs[input.id] = input.checked
+      break
+    }
+  }
   
-//   data.inputs = inputs
+  data.inputs = inputs
 
-//   compute()
-// }
+  compute()
+}
 
 /**
  * The animation loop!

@@ -7,7 +7,6 @@ async function getVersion() {
     'method':'GET',
     'headers': {'RhinoComputeKey': process.env.RHINO_COMPUTE_KEY }
   }
-  console.log(request)
 
   const response = await fetch( process.env.RHINO_COMPUTE_URL + 'version', request )
   console.log(response)
@@ -15,6 +14,7 @@ async function getVersion() {
 
   result.appserver = appserverVersion
 
+  console.log(result)
 
   return result
 

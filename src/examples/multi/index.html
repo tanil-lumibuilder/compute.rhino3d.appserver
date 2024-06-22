@@ -3,26 +3,18 @@
     <head>
         <meta charset="utf-8">
         <link rel="icon" href="data:,">
-        <title>hull.gh</title>
+        <title>rnd_lattice.gh and rnd_node.gh</title>
         <style>
-/* /////////////////////////////////////////////////////////////////////////// */
             body {
                 margin: 0;
                 font-family: monospace;
-                color: #f3f3f3;
             }
-/* /////////////////////////////////////////////////////////////////////////// */
             canvas { width: 100%; height: 100%; }
             input[type=range] { width: 100%; }
             #container { position: relative; }
             #container canvas, #overlay { position: absolute; }
             #overlay { z-index: 1; width: 100%; }
-/* /////////////////////////////////////////////////////////////////////////// */
-            #overlay div {
-              padding: 5px;
-              text-align-last: center;
-              }
-/* /////////////////////////////////////////////////////////////////////////// */
+            #overlay div { padding: 5px; }
             #loader {
                 border: 5px solid #f3f3f3; /* Light grey */
                 border-top: 5px solid #3d3d3d; /* Grey */
@@ -46,14 +38,36 @@
         <div id="container">
             <div id="overlay">
 <!-- /////////////////////////////////////////////////////////////////////////// -->
+                
+                <!-- drop-down menu for grasshopper files -->
                 <div>
-                    <h1>Upload 3DM file</h1>
-                    <input type="file" accept=".3dm" id="file-input" />
+                  <h2>Multiple files!</h2>
+                  <label for="files">Choose a file:</label>
+                  <select name="files" id="files">
+                    <option value="rnd_lattice.gh">rnd_lattice.gh</option>
+                    <option value="rnd_node.gh">rnd_node.gh</option>
+                  </select>
                 </div>
-                <div id="msg">Choose a .3dm file that has breps and/or extrusions ☝</div>
-                <div><button id="downloadButton" disabled>Download</button></div>
-                <!-- <div><a href="hull.gh" download="hull.gh.html">Save source code</a></div> -->
+
+                <!-- create empty "inputs" div that we can populate with inputs when
+                     onDropdownChanged() is called -->
+                <div id="inputs">
+                  <!-- <div>
+                    <label for="boxSize">boxSize</label>
+                    <input type="range" id="boxSize" min="0.5" max="10" value="10" step="1">
+                  </div>
+                  <div>
+                    <label for="count">count</label>
+                    <input type="range" id="count" min="10" max="100" value="42" step="1">
+                  </div>
+                  <div>
+                    <label for="nodeSize">nodeSize</label>
+                    <input type="range" id="nodeSize" min="3" max="10" value="7" step="1">
+                  </div> -->
+                </div>
 <!-- /////////////////////////////////////////////////////////////////////////// -->
+                <div><button id="downloadButton" disabled>Download</button></div>
+                <div><a href="rnd_lattice.gh" download="rnd_lattice.gh.html">Save source code</a></div>
             </div>
         </div>
 
@@ -67,10 +81,11 @@
                 "three": "https://unpkg.com/three@0.156.1/build/three.module.js",
                 "three/examples/jsm/controls/OrbitControls": "https://unpkg.com/three@0.156.1/examples/jsm/controls/OrbitControls.js",
                 "three/examples/jsm/loaders/3DMLoader": "https://unpkg.com/three@0.156.1/examples/jsm/loaders/3DMLoader.js",
-                "rhino3dm":"https://unpkg.com/rhino3dm@8.0.0-beta/rhino3dm.module.js"
+                "rhino3dm":"https://unpkg.com/rhino3dm@8.0.0-beta2/rhino3dm.module.js"
               }
             }
         </script>
+
         <script type="module">
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
@@ -83,11 +98,14 @@ loader.setLibraryPath( 'https://unpkg.com/rhino3dm@8.0.0-beta/' )
 
 // initialise 'data' object that will be used by compute()
 const data = {
-  definition: 'brep_union.gh',
-  inputs: {
-    breps: []
-  }
+  definition: 'rnd_lattice.gh',
+  inputs: getInputs()
 }
+
+///////////////////////////////////////////////////////////////////////////
+const dropdown = document.getElementById("files")
+dropdown.onchange = onDropdownChange
+///////////////////////////////////////////////////////////////////////////
 
 // globals
 let doc
@@ -97,7 +115,10 @@ const rhino = await rhino3dm()
 console.log('Loaded rhino3dm.')
 
 init()
-compute()
+///////////////////////////////////////////////////////////////////////////
+    // compute()
+    onDropdownChange() // manually trigger ui update (calls compute())
+///////////////////////////////////////////////////////////////////////////
 
 const downloadButton = document.getElementById("downloadButton")
 downloadButton.onclick = download
@@ -106,74 +127,93 @@ downloadButton.onclick = download
  //                            HELPER  FUNCTIONS                            //
 /////////////////////////////////////////////////////////////////////////////
 
-///////////////////////////////////////////////////////////////////////////
-async function readSingleFile(e) {
-  // get file
-  var file = e.target.files[0]
-  if (!file) {
-    document.getElementById('msg').innerText = 'Something went wrong...'
-    return
-  }
-
-  // try to open 3dm file
-  const buffer = await file.arrayBuffer()
-  const uploadDoc = rhino.File3dm.fromByteArray(new Uint8Array(buffer))
-
-  if (uploadDoc === null) {
-    document.getElementById('msg').innerText = 'Must be a .3dm file!'
-    return
-  }
-
-  // get geometry from file
-  const objs = uploadDoc.objects()
-  const geometry = []
-  for (let i = 0; i < objs.count; i++) {
-    const geom = objs.get(i).geometry()
-    // filter for geometry of a specific type
-    if (geom instanceof rhino.Brep || geom instanceof rhino.Extrusion) {
-      geometry.push(JSON.stringify(geom))
-    }
-  }
-
-  // solve!
-  data.inputs.breps = geometry
-  compute()
-}
-
-// register event listener for file input
-document.getElementById('file-input')
-  .addEventListener('change', readSingleFile, false);
-///////////////////////////////////////////////////////////////////////////
-
 /**
  * Gets <input> elements from html and sets handlers
  * (html is generated from the grasshopper definition)
  */
-// function getInputs() {
-//   const inputs = {}
-//   for (const input of document.getElementsByTagName('input')) {
-//     switch (input.type) {
-//       case 'number':
-//         inputs[input.id] = input.valueAsNumber
-//         input.onchange = onSliderChange
-//         break
-//       case 'range':
-//         inputs[input.id] = input.valueAsNumber
-//         input.onmouseup = onSliderChange
-//         input.ontouchend = onSliderChange
-//         break
-//       case 'checkbox':
-//         inputs[input.id] = input.checked
-//         input.onclick = onSliderChange
-//         break
-//       default:
-//         break
-//     }
-//   }
-//   return inputs
-// }
+function getInputs() {
+  const inputs = {}
+  for (const input of document.getElementsByTagName('input')) {
+    switch (input.type) {
+      case 'number':
+        inputs[input.id] = input.valueAsNumber
+        input.onchange = onSliderChange
+        break
+      case 'range':
+        inputs[input.id] = input.valueAsNumber
+        input.onmouseup = onSliderChange
+        input.ontouchend = onSliderChange
+        break
+      case 'checkbox':
+        inputs[input.id] = input.checked
+        input.onclick = onSliderChange
+        break
+      default:
+        break
+    }
+  }
+  return inputs
+}
 
+///////////////////////////////////////////////////////////////////////////
+/**
+ * Handle events when drop-down is changed
+ */
+function onDropdownChange(event) {
+  data.definition = dropdown.value
+  console.log(dropdown.value)
+  updateInputs()
+}
 
+/**
+ * Update "inputs" div in html and trigger re-solve
+ */
+async function updateInputs() {
+  const response = await fetch('/' + data.definition)
+  // console.log(response)
+  const responseJson = await response.json()
+  
+  const inputsDiv = document.getElementById('inputs')
+  let inputsHtml = ''
+
+  // build <input> tag for input (based on code in template.js)
+  for (const input of responseJson.inputs) {
+    let html = ''
+    switch (input.paramType) {
+      case 'Integer':
+        html = `<input type="number" id="${input.name}" value="${input.default}">`
+        break;
+      case 'Number':
+        if (input.minimum !== undefined && input.minimum !== null
+            && input.maximum !== undefined && input.maximum !== null)
+        {
+          // use range input if min and max set
+          html = `<input type="range" id="${input.name}" min="${input.minimum}" max="${input.maximum}" value="${input.default}" step="1">`
+        } else {
+          // otherwise use number input
+          html = `<input type="number" id="${input.name}" value="${input.default}">`
+        }
+        break
+      case 'Boolean':
+        const checked = input.default ? 'checked' : ''
+        html = `<input type="checkbox" id="${input.name}" ${checked}>`
+        break
+    }
+    if (html.length > 0) {
+      // if we found an input that we can handle, add it to the collection with a label
+      inputsHtml = inputsHtml + '\n' + `<label for="${input.name}">${input.name}</label>` + '\n' + html
+    }
+  }
+  // console.log(inputsHtml)
+
+  // replace inputs in html
+  inputsDiv.innerHTML = inputsHtml
+
+  // update inputs and re-solve by manually triggering a "slider change"
+  data.inputs = getInputs()
+  onSliderChange()
+}
+///////////////////////////////////////////////////////////////////////////
 
 /**
  * Sets up the scene, camera, renderer, lights and controls and starts the animation
@@ -190,7 +230,7 @@ function init() {
     camera.position.set(1, -1, 1) // like perspective view
 
     // very light grey for background, like rhino
-    scene.background = new THREE.Color('black')
+    scene.background = new THREE.Color('whitesmoke')
 
     // create the renderer and add it to the html
     renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -219,19 +259,17 @@ function init() {
  * Call appserver
  */
 async function compute() {
+  // construct url for GET /solve/definition.gh?name=value(&...)
 ///////////////////////////////////////////////////////////////////////////
-  showSpinner(true)
-
-  // use POST request
-  const request = {
-    'method':'POST',
-    'body': JSON.stringify(data),
-    'headers': {'Content-Type': 'application/json'}
-  }
+  // update call to compute to use data.definition, instead of hard-coding
+  // the grasshopper file name
+  const url = new URL('/solve/' + data.definition, window.location.origin)
+///////////////////////////////////////////////////////////////////////////
+  Object.keys(data.inputs).forEach(key => url.searchParams.append(key, data.inputs[key]))
+  console.log(url.toString())
   
   try {
-    const response = await fetch('/solve', request)
-///////////////////////////////////////////////////////////////////////////
+    const response = await fetch(url)
   
     if(!response.ok) {
       // TODO: check for errors in response json
@@ -239,8 +277,6 @@ async function compute() {
     }
 
     const responseJson = await response.json()
-
-    console.log(responseJson)
 
     collectResults(responseJson)
 
@@ -285,25 +321,16 @@ function collectResults(responseJson) {
       return
     }
 
-///////////////////////////////////////////////////////////////////////////
-    const countBefore = data.inputs.breps.length
-    const countAfter = doc.objects().count
-    document.getElementById('msg').innerText = `${countBefore} breps become ${countAfter}!`
-
-    // hack (https://github.com/mcneel/rhino3dm/issues/353)
-    const sphereAttrs = new rhino.ObjectAttributes()
-    sphereAttrs.mode = rhino.ObjectMode.Hidden
-    doc.objects().addSphere(new rhino.Sphere([0,0,0], 0.001), sphereAttrs)
-///////////////////////////////////////////////////////////////////////////
-
     // load rhino doc into three.js scene
     const buffer = new Uint8Array(doc.toByteArray()).buffer
     loader.parse( buffer, function ( object ) 
     {
 ///////////////////////////////////////////////////////////////////////////
+        // change mesh material
         object.traverse(child => {
-          if (child.isMesh)
-            child.material = new THREE.MeshNormalMaterial({ wireframe: true })
+          if (child.isMesh) {
+            child.material = new THREE.MeshNormalMaterial({ wireframe: true})
+          }
         }, false)
 ///////////////////////////////////////////////////////////////////////////
 
@@ -323,7 +350,7 @@ function collectResults(responseJson) {
 
         // zoom to extents
         zoomCameraToSelection(camera, controls, scene.children)
-    },(error)=>{console.error(error)})
+    }, (error)=>{console.error(error)})
 }
 
 /**
@@ -346,28 +373,28 @@ function decodeItem(item) {
  * Called when a slider value changes in the UI. Collect all of the
  * slider values and call compute to solve for a new scene
  */
-// function onSliderChange () {
-//   showSpinner(true)
-//   // get slider values
-//   let inputs = {}
-//   for (const input of document.getElementsByTagName('input')) {
-//     switch (input.type) {
-//     case 'number':
-//       inputs[input.id] = input.valueAsNumber
-//       break
-//     case 'range':
-//       inputs[input.id] = input.valueAsNumber
-//       break
-//     case 'checkbox':
-//       inputs[input.id] = input.checked
-//       break
-//     }
-//   }
+function onSliderChange () {
+  showSpinner(true)
+  // get slider values
+  let inputs = {}
+  for (const input of document.getElementsByTagName('input')) {
+    switch (input.type) {
+    case 'number':
+      inputs[input.id] = input.valueAsNumber
+      break
+    case 'range':
+      inputs[input.id] = input.valueAsNumber
+      break
+    case 'checkbox':
+      inputs[input.id] = input.checked
+      break
+    }
+  }
   
-//   data.inputs = inputs
+  data.inputs = inputs
 
-//   compute()
-// }
+  compute()
+}
 
 /**
  * The animation loop!
